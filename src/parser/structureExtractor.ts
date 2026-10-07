@@ -98,7 +98,7 @@ const startLine = (node: SyntaxNode): number => node.startPosition.row + 1;
 const endLine = (node: SyntaxNode): number => node.endPosition.row + 1;
 
 /** True when `node` has an anonymous (keyword) child such as `async`, `static`, `default`. */
-function hasKeyword(node: SyntaxNode, keyword: string): boolean {
+export function hasKeyword(node: SyntaxNode, keyword: string): boolean {
   return node.children.some((child) => !child.isNamed && child.type === keyword);
 }
 
@@ -116,7 +116,8 @@ function compact(text: string, maxLength: number = MAX_SIGNATURE_LENGTH): string
   return collapsed.length > maxLength ? `${collapsed.slice(0, maxLength - 3)}...` : collapsed;
 }
 
-function stringLiteralValue(node: SyntaxNode | null | undefined): string | undefined {
+/** Value of a string literal or of a template literal without substitutions; undefined otherwise. */
+export function stringLiteralValue(node: SyntaxNode | null | undefined): string | undefined {
   if (node === null || node === undefined) {
     return undefined;
   }

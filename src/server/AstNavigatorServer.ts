@@ -13,7 +13,8 @@ import { ResilientStdioServerTransport } from "./ResilientStdioServerTransport.j
 const SERVER_INSTRUCTIONS = `AST Navigator exposes the Tree-sitter syntax tree of local JavaScript/TypeScript code.
 Typical workflow: find_definition to locate where a class/function/method/type is declared,
 then get_file_structure on the returned filePath to see the file's imports and declarations with line ranges,
-then read only the lines you need. Both tools are read-only.`;
+then read only the lines you need. analyze_dependencies lists the local files a file imports,
+to follow the dependency graph one module at a time. All tools are read-only.`;
 
 export class AstNavigatorServer {
   private readonly mcp: McpServer;

@@ -74,9 +74,9 @@ describe("sandboxed server", () => {
     await rm(workspace.base, { recursive: true, force: true });
   });
 
-  test("advertises exactly the two read-only tools with input and output schemas", async () => {
+  test("advertises exactly the three read-only tools with input and output schemas", async () => {
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map((tool) => tool.name).sort(), ["find_definition", "get_file_structure"]);
+    assert.deepEqual(tools.map((tool) => tool.name).sort(), ["analyze_dependencies", "find_definition", "get_file_structure"]);
     for (const tool of tools) {
       assert.equal(tool.annotations?.readOnlyHint, true);
       assert.equal(tool.annotations?.destructiveHint, false);
@@ -444,7 +444,7 @@ describe("resilience to malformed payloads", () => {
 
       send({ jsonrpc: "2.0", id: 4, method: "tools/list" });
       const toolList = await waitFor((m) => m.id === 4, "tools/list after garbage");
-      assert.equal(toolList.result.tools.length, 2);
+      assert.equal(toolList.result.tools.length, 3);
 
       assert.equal(child.exitCode, null, "server must still be running");
       assert.deepEqual(nonJsonStdoutLines, [], "stdout must carry JSON-RPC only");

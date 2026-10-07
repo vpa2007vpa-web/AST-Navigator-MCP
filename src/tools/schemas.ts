@@ -10,6 +10,8 @@ import {
   DefinitionKindSchema,
   DefinitionSchema,
   isSupportedSourceFile,
+  LanguageIdSchema,
+  MODULE_REFERENCE_KINDS,
   SUPPORTED_EXTENSIONS,
 } from "../parser/index.js";
 
@@ -44,14 +46,17 @@ const PathSchema = z
   .refine((value) => !CONTROL_CHARACTERS.test(value), "Path must not contain control characters (including NUL).")
   .refine((value) => !WINDOWS_DEVICE_NAMESPACE.test(value), "Windows device-namespace paths are not accepted.");
 
+/** A path that must also name a JavaScript/TypeScript source file. */
+const SourceFilePathSchema = PathSchema.refine(isSupportedSourceFile, {
+  message: `Unsupported file extension. Supported: ${SUPPORTED_EXTENSIONS.join(", ")}.`,
+});
+
 // ---------------------------------------------------------------------------
 // get_file_structure
 // ---------------------------------------------------------------------------
 
 export const GetFileStructureInputSchema = z.strictObject({
-  filePath: PathSchema.refine(isSupportedSourceFile, {
-    message: `Unsupported file extension. Supported: ${SUPPORTED_EXTENSIONS.join(", ")}.`,
-  }).describe(
+  filePath: SourceFilePathSchema.describe(
     "Source file to outline. Absolute path recommended, e.g. 'C:\\repo\\src\\index.ts' or '/home/me/repo/src/index.ts'. " +
       "Relative paths resolve against the server's first allowed root.",
   ),
@@ -116,3 +121,66 @@ export const FindDefinitionOutputSchema = z.object({
 });
 
 export type FindDefinitionOutput = z.infer<typeof FindDefinitionOutputSchema>;
+
+// ---------------------------------------------------------------------------
+// analyze_dependencies
+// ---------------------------------------------------------------------------
+
+export const UNRESOLVED_REASONS = ["not_found", "outside_roots", "invalid"] as const;
+export type UnresolvedReason = (typeof UNRESOLVED_REASONS)[number];
+
+const ModuleReferenceKindSchema = z.enum(MODULE_REFERENCE_KINDS);
+const LineListSchema = z.array(z.number().int().positive()).describe("1-based lines where the module is referenced");
+
+export const AnalyzeDependenciesInputSchema = z.strictObject({
+  filePath: SourceFilePathSchema.describe(
+    "Source file whose local dependencies to list. Absolute path recommended. Relative paths resolve against the server's first allowed root.",
+  ),
+  includeTypeOnly: z
+    .boolean()
+    .default(true)
+    .describe("Include `import type` / `export type ... from` references, which are erased at compile time (default true)."),
+  responseFormat: ResponseFormatSchema,
+});
+
+export type AnalyzeDependenciesInput = z.infer<typeof AnalyzeDependenciesInputSchema>;
+
+export const InternalDependencySchema = z.object({
+  path: z.string().describe("Absolute path of the local file this file depends on"),
+  specifiers: z.array(z.string()).describe("Specifiers as written in the source that resolve to this file"),
+  kinds: z.array(ModuleReferenceKindSchema),
+  typeOnly: z.boolean().describe("True when every reference is type-only (no runtime load)"),
+  lines: LineListSchema,
+});
+
+export const UnresolvedDependencySchema = z.object({
+  specifier: z.string(),
+  reason: z
+    .enum(UNRESOLVED_REASONS)
+    .describe("'not_found': no matching file; 'outside_roots': it points outside the allowed roots; 'invalid': not a usable path"),
+  kinds: z.array(ModuleReferenceKindSchema),
+  lines: LineListSchema,
+});
+
+export const AnalyzeDependenciesOutputSchema = z.object({
+  filePath: z.string().describe("Absolute path of the analysed file"),
+  language: LanguageIdSchema,
+  hasSyntaxErrors: z.boolean().describe("True if the file has syntax errors; references inside broken code may be missed"),
+  dependencies: z.array(InternalDependencySchema).describe("Local files this file loads, in order of first reference"),
+  unresolved: z.array(UnresolvedDependencySchema).describe("Local specifiers that do not resolve to a file inside the allowed roots"),
+  externalCount: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe("Distinct non-local specifiers ignored: packages (node_modules), node: built-ins, path aliases"),
+  nonLiteralCount: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe("require()/import() calls with a computed argument, which cannot be followed statically"),
+  truncated: z.boolean().describe("True if the file has more distinct local specifiers than are resolved per call"),
+});
+
+export type InternalDependency = z.infer<typeof InternalDependencySchema>;
+export type UnresolvedDependency = z.infer<typeof UnresolvedDependencySchema>;
+export type AnalyzeDependenciesOutput = z.infer<typeof AnalyzeDependenciesOutputSchema>;

@@ -115,6 +115,20 @@ describe("PathPolicy", () => {
     await assert.rejects(policy.resolve("escape/leak.ts"), outsideRoots);
   });
 
+  test("a link inside the root does not reveal what exists beneath its target", async (t) => {
+    if (!workspace.linksCreated) {
+      t.skip("could not create directory links on this system");
+      return;
+    }
+    // Before the fix, a missing file under the link answered FILE_NOT_FOUND while
+    // an existing one answered PATH_OUTSIDE_ROOTS: the link became a probe.
+    await assert.rejects(policy.resolve("escape/leak.ts"), outsideRoots); // exists out there
+    await assert.rejects(policy.resolve("escape/missing.ts"), outsideRoots); // does not
+    await assert.rejects(policy.resolve("escape/no-such-dir/x.ts"), outsideRoots); // nor does its parent
+    // Missing paths whose existing ancestors are all inside keep the precise diagnostic.
+    await assert.rejects(policy.resolve("src/no-such-dir/x.ts"), { code: "FILE_NOT_FOUND" });
+  });
+
   test("a path reaching the root through an outside link is still allowed", async (t) => {
     if (!workspace.linksCreated) {
       t.skip("could not create directory links on this system");
@@ -281,6 +295,18 @@ describe("sandboxed server: traversal barriers", () => {
     assert.equal(rootScan.structuredContent.total, 0);
     const control = await client.callTool({ name: "find_definition", arguments: { name: "Inside" } });
     assert.equal(control.structuredContent.total, 1);
+  });
+
+  test("a link inside the root cannot be used to probe what exists beneath its target", async (t) => {
+    if (!workspace.linksCreated) {
+      t.skip("could not create directory links on this system");
+      return;
+    }
+    const codes = [];
+    for (const probe of ["escape/leak.ts", "escape/missing.ts", "escape/no-such-dir/x.ts"]) {
+      codes.push(firstLineOf(await outlineOf(probe)).match(/^Error \[(\w+)\]/)?.[1]);
+    }
+    assert.deepEqual(codes, ["PATH_OUTSIDE_ROOTS", "PATH_OUTSIDE_ROOTS", "PATH_OUTSIDE_ROOTS"]);
   });
 
   test("a path reaching the root through an outside link is still served, canonically", async (t) => {

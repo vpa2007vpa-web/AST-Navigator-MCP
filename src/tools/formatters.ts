@@ -13,7 +13,7 @@ import type {
   PropertyInfo,
   TypeInfo,
 } from "../parser/index.js";
-import type { FindDefinitionOutput } from "./schemas.js";
+import type { AnalyzeDependenciesOutput, FindDefinitionOutput, InternalDependency, UnresolvedDependency } from "./schemas.js";
 
 function lineRange(startLine: number, endLine: number): string {
   return startLine === endLine ? `L${startLine}` : `L${startLine}-${endLine}`;
@@ -210,6 +210,56 @@ export function formatFindDefinitionMarkdown(output: FindDefinitionOutput): stri
   }
   if (output.skippedFiles > 0) {
     lines.push("", `Note: ${count(output.skippedFiles, "file")} skipped (unreadable or larger than the size limit).`);
+  }
+  return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// analyze_dependencies
+// ---------------------------------------------------------------------------
+
+function lineList(lines: readonly number[]): string {
+  return lines.map((line) => `L${line}`).join(", ");
+}
+
+function formatDependency(dependency: InternalDependency): string {
+  const typeOnly = dependency.typeOnly ? ", type-only" : "";
+  const via = dependency.specifiers.map((specifier) => `"${specifier}"`).join(", ");
+  return `- ${dependency.path}\n  ${via} [${dependency.kinds.join(", ")}${typeOnly}] ${lineList(dependency.lines)}`;
+}
+
+function formatUnresolved(dependency: UnresolvedDependency): string {
+  return `- "${dependency.specifier}": ${dependency.reason} [${dependency.kinds.join(", ")}] ${lineList(dependency.lines)}`;
+}
+
+export function formatDependenciesMarkdown(output: AnalyzeDependenciesOutput): string {
+  const lines: string[] = [
+    `# Dependencies of ${output.filePath}`,
+    [
+      output.language,
+      count(output.dependencies.length, "internal dependency", "internal dependencies"),
+      count(output.unresolved.length, "unresolved", "unresolved"),
+      `${count(output.externalCount, "external specifier")} ignored`,
+    ].join(" | "),
+  ];
+
+  if (output.hasSyntaxErrors) {
+    lines.push("Warning: syntax errors; references inside broken code may be missing.");
+  }
+
+  if (output.dependencies.length === 0) {
+    lines.push("", "(no internal dependencies)");
+  } else {
+    lines.push("", "## Internal", ...output.dependencies.map(formatDependency));
+  }
+  if (output.unresolved.length > 0) {
+    lines.push("", "## Unresolved", ...output.unresolved.map(formatUnresolved));
+  }
+  if (output.nonLiteralCount > 0) {
+    lines.push("", `Note: ${count(output.nonLiteralCount, "require()/import() call")} with a computed argument could not be followed.`);
+  }
+  if (output.truncated) {
+    lines.push("", "Warning: the file has more distinct local specifiers than are resolved per call; the list is incomplete.");
   }
   return lines.join("\n");
 }

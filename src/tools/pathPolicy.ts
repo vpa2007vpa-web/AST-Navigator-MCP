@@ -15,6 +15,13 @@
  * contained can only ever produce PATH_OUTSIDE_ROOTS, so the filesystem error
  * codes (FILE_NOT_FOUND / PERMISSION_DENIED) cannot be used as an existence
  * oracle for the parts of the disk the sandbox is meant to hide.
+ *
+ * Lexical containment alone is not enough for that guarantee: a link *inside*
+ * a root can point outside it, and `root/link/missing.ts` is lexically
+ * contained. When such a path cannot be resolved, the deepest ancestor that
+ * does exist is canonicalised, and if it lies outside the roots the failure is
+ * reported as PATH_OUTSIDE_ROOTS too - otherwise FILE_NOT_FOUND would reveal
+ * what exists beneath the link's target.
  */
 import { realpath } from "node:fs/promises";
 import path from "node:path";
@@ -86,7 +93,10 @@ export class PathPolicy {
     } catch (error) {
       // Outside the sandbox: never disclose *why* resolution failed, or the
       // error code tells the caller which paths exist out there.
-      throw lexicallyContained ? toFileAccessError(error, absolute) : this.outsideRootsError(absolute);
+      if (lexicallyContained && (await this.existingAncestorIsContained(absolute))) {
+        throw toFileAccessError(error, absolute);
+      }
+      throw this.outsideRootsError(absolute);
     }
 
     if (!this.contains(canonical)) {
@@ -98,6 +108,25 @@ export class PathPolicy {
   /** True when `target` is lexically inside one of the roots. No filesystem access. */
   public contains(target: string): boolean {
     return this.roots.some((root) => isWithin(root, target));
+  }
+
+  /**
+   * Canonicalises the deepest ancestor of an unresolvable path that does exist
+   * and reports whether it is inside the roots. Bounded by the path's depth.
+   */
+  private async existingAncestorIsContained(absolute: string): Promise<boolean> {
+    let current = path.dirname(absolute);
+    for (;;) {
+      try {
+        return this.contains(await realpath(current));
+      } catch {
+        const parent = path.dirname(current);
+        if (parent === current) {
+          return false; // Not even the filesystem root resolves: fail closed.
+        }
+        current = parent;
+      }
+    }
   }
 
   private outsideRootsError(requested: string): AstNavigatorError {

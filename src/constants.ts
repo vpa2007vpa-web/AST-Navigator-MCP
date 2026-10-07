@@ -27,6 +27,16 @@ export const MAX_SIGNATURE_LENGTH = 240;
 /** Number of syntax-error locations reported per file. */
 export const MAX_REPORTED_SYNTAX_ERRORS = 10;
 
+/**
+ * Distinct local module specifiers resolved per analyze_dependencies call.
+ * Each one may cost a couple of dozen filesystem probes (extensions, index
+ * files), so a pathological file must not turn one call into an unbounded scan.
+ */
+export const MAX_DEPENDENCY_SPECIFIERS = 500;
+
+/** Module specifiers longer than this are reported as invalid instead of being resolved. */
+export const MAX_SPECIFIER_LENGTH = 1024;
+
 /** Largest single JSON-RPC frame accepted on stdin (same default as the official SDK). */
 export const MAX_STDIO_FRAME_BYTES = 10 * 1024 * 1024;
 

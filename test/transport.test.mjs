@@ -368,7 +368,7 @@ describe("server process under a malformed flood", () => {
       server.send({ jsonrpc: "2.0", method: "notifications/initialized" });
       server.send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
       const toolList = await server.waitFor((message) => message.id === 2, "tools/list after the flood");
-      assert.equal(toolList.result.tools.length, 2);
+      assert.equal(toolList.result.tools.length, 3);
       assert.deepEqual(server.nonJsonLines, [], "stdout must carry JSON-RPC only");
     } finally {
       assert.equal(await server.stop(), 0, "server should exit cleanly when stdin closes");
