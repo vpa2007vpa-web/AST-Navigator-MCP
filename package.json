@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "MCP server that lets LLMs explore the Abstract Syntax Tree of local JavaScript/TypeScript repositories using Tree-sitter.",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
