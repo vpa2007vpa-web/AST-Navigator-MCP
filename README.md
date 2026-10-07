@@ -325,7 +325,7 @@ The exercise also exposed a test that *hung* instead of failing against the brok
 ### Build
 
 ```bash
-git clone https://github.com/<your-user>/AST-Navigator-MCP.git
+git clone https://github.com/vpa2007vpa-web/AST-Navigator-MCP.git
 cd AST-Navigator-MCP
 npm install    # installs dependencies and compiles to ./dist (prepare script)
 npm test       # rebuilds and runs the full test suite
